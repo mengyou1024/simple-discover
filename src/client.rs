@@ -8,7 +8,7 @@ use tokio::{
     time::{Instant, timeout_at},
 };
 
-use crate::{DiscoverConfig, DiscoveredDevice, MSG_TYPE_RESPONSE, decode_message, encode_request};
+use crate::{DiscoverConfig, DiscoveredDevice, MSG_TYPE_RESPONSE, PROTOCOL_BUFFER_SIZE, decode_message, encode_request};
 
 /// 设备发现客户端
 pub struct DiscoverClient {
@@ -48,7 +48,7 @@ impl DiscoverClient {
         let instant = Instant::now();
 
         // 使用较大的缓冲区以支持自定义数据
-        let mut buf = [0u8; 4096];
+        let mut buf = [0u8; PROTOCOL_BUFFER_SIZE];
 
         let mut devices = vec![];
 

@@ -22,6 +22,9 @@ const MSG_TYPE_REQUEST: u8 = 0;
 const MSG_TYPE_RESPONSE: u8 = 1;
 /// 协议头部长度：Magic(4) + Version(1) + Type(1) + Length(4) + CRC32(4) = 14 bytes
 const PROTOCOL_HEADER_SIZE: usize = 14;
+/// 协议缓冲区大小
+const PROTOCOL_BUFFER_SIZE: usize = 4096;
+
 
 /// 发现配置
 #[derive(Debug, Clone)]

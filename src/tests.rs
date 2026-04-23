@@ -5,21 +5,6 @@ use tokio::time::timeout;
 
 use super::*;
 
-static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-// 这个宏会给每个测试加锁
-macro_rules! serial_test {
-    ($($tt:tt)*) => {
-        // #[test]     // 普通同步测试用这个
-        $($tt)* {
-            // 全局加锁 → 同一时间只有一个测试能运行
-            let _lock = TEST_LOCK.lock().unwrap();
-            // 测试代码写这里
-            $($tt)*
-        }
-    };
-}
-
 async fn test_discover_default() {
     let server = DiscoverServer::new();
     let client = DiscoverClient::new();
@@ -75,9 +60,26 @@ async fn test_discover_custom_struct() {
     }
 }
 
+async fn test_discover_big_data() {
+    let buffer = include_str!("../README.md");
+    let server = DiscoverServer::new().with_custom_data(buffer);
+    let client = DiscoverClient::new();
+
+    tokio::select! {
+        Err(_) = timeout(Duration::from_secs(10), server.start()) => panic!("discover timeout"),
+        devices = client.discover(Duration::from_secs(3)) => {
+            assert!(devices.is_ok());
+            assert!(devices.as_ref().unwrap().len() > 0);
+        }
+    }
+    server.stop();
+}
+
 #[tokio::test]
+#[should_panic(expected = "Custom data is too large")]
 async fn test_discover_serial() {
     test_discover_default().await;
     test_discover_custom_data().await;
     test_discover_custom_struct().await;
+    test_discover_big_data().await;
 }

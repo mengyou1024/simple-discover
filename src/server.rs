@@ -3,7 +3,10 @@ use std::net::{Ipv4Addr, SocketAddrV4};
 use tokio::{net::UdpSocket, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 
-use crate::{DiscoverConfig, DiscoverError, MSG_TYPE_REQUEST, decode_message, encode_response};
+use crate::{
+    DiscoverConfig, DiscoverError, MSG_TYPE_REQUEST, PROTOCOL_BUFFER_SIZE, decode_message,
+    encode_response,
+};
 
 /// 获取可用的套接字
 /// # Arguments
@@ -97,10 +100,16 @@ impl DiscoverServer {
     /// # Arguments
     /// * `data` - 实现了 Serialize trait 的数据
     /// # Panics
-    /// 如果数据无法序列化为 JSON，将会 panic
+    /// 数据无法序列化为 JSON
+    /// 数据太大
     pub fn with_custom_data<T: serde::Serialize>(mut self, data: T) -> Self {
         match serde_json::to_value(data) {
-            Ok(value) => self.custom_data = Some(value),
+            Ok(value) => {
+                if encode_response(Some(&value)).unwrap().len() > PROTOCOL_BUFFER_SIZE {
+                    panic!("Custom data is too large");
+                }
+                self.custom_data = Some(value)
+            }
             Err(err) => panic!("Failed to serialize custom data to JSON: {}", err),
         }
         self
@@ -121,7 +130,7 @@ impl DiscoverServer {
 
         Ok(tokio::spawn(async move {
             // 使用较大的缓冲区以支持自定义数据
-            let mut buf = [0u8; 4096];
+            let mut buf = [0u8; PROTOCOL_BUFFER_SIZE];
             loop {
                 tokio::select! {
                     _ = cancellation_token.cancelled() => break,
