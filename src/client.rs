@@ -43,9 +43,7 @@ impl DiscoverClient {
         log::info!("start discovering at {}", socket.local_addr()?);
 
         // 加入组播
-        socket.join_multicast_v4(self.config.multicast_addr, Ipv4Addr::new(127, 0, 0, 1))?;
-        // 禁用组播回环
-        socket.set_multicast_loop_v4(false)?;
+        socket.join_multicast_v4(self.config.multicast_addr, Ipv4Addr::UNSPECIFIED)?;
 
         let instant = Instant::now();
 

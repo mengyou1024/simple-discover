@@ -1,6 +1,6 @@
 [package]
 name = "simple-discover"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2024"
 
 description = "A lightweight service discovery library for LAN using UDP multicast with custom data support"

@@ -112,8 +112,6 @@ impl DiscoverServer {
 
         // 加入组播
         socket.join_multicast_v4(self.config.multicast_addr, Ipv4Addr::UNSPECIFIED)?;
-        // 禁用组播回环
-        socket.set_multicast_loop_v4(false)?;
 
         log::info!("start discover server: {}", socket.local_addr()?);
 
