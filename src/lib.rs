@@ -232,3 +232,6 @@ fn decode_message(buffer: &[u8]) -> crate::Result<(u8, serde_json::Value)> {
 
 pub use client::DiscoverClient;
 pub use server::DiscoverServer;
+
+#[cfg(test)]
+mod tests;
