@@ -1,6 +1,6 @@
 [package]
 name = "simple-discover"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2024"
 
 description = "A lightweight service discovery library for LAN using UDP multicast with custom data support"
@@ -26,6 +26,7 @@ tokio-util = "0.7.18"
 serde_json = "1.0.149"
 serde = { version = "1.0.228", features = ["derive"] }
 crc32fast = "1.5.0"
+local-ip-address = "0.6.12"
 
 [dev-dependencies]
 env_logger = { version = "0.11.10", features = ["auto-color"] }

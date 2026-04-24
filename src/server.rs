@@ -1,4 +1,4 @@
-use std::net::{Ipv4Addr, SocketAddrV4};
+use std::net::{IpAddr, Ipv4Addr, SocketAddrV4};
 
 use tokio::{net::UdpSocket, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
@@ -119,8 +119,18 @@ impl DiscoverServer {
     pub async fn start(&self) -> crate::Result<JoinHandle<()>> {
         let socket = get_available_socket(&self.config.ports, self.config.listen_addr).await?;
 
-        // 加入组播
-        socket.join_multicast_v4(self.config.multicast_addr, Ipv4Addr::UNSPECIFIED)?;
+        for (_, addr) in local_ip_address::list_afinet_netifas()
+            .map_err(|e| DiscoverError::Other(e.to_string()))?
+        {
+            let IpAddr::V4(addr) = addr else {
+                continue;
+            };
+
+            // 加入组播
+            if socket.join_multicast_v4(self.config.multicast_addr, addr).is_err() {
+                log::warn!("Failed to join multicast group, ip: {}", addr);
+            }
+        }
 
         log::info!("start discover server: {}", socket.local_addr()?);
 
@@ -135,6 +145,7 @@ impl DiscoverServer {
                 tokio::select! {
                     _ = cancellation_token.cancelled() => break,
                     result = socket.recv_from(&mut buf) => {
+                        log::debug!("recv {:?}", result);
                         if let Ok((len, src)) = result {
                             // 处理发现请求
                             handle_discover_request(

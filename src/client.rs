@@ -1,5 +1,5 @@
 use std::{
-    net::{Ipv4Addr, SocketAddrV4},
+    net::{IpAddr, Ipv4Addr, SocketAddrV4},
     time::Duration,
 };
 
@@ -8,7 +8,10 @@ use tokio::{
     time::{Instant, timeout_at},
 };
 
-use crate::{DiscoverConfig, DiscoveredDevice, MSG_TYPE_RESPONSE, PROTOCOL_BUFFER_SIZE, decode_message, encode_request};
+use crate::{
+    DiscoverConfig, DiscoverError, DiscoveredDevice, MSG_TYPE_RESPONSE, PROTOCOL_BUFFER_SIZE,
+    decode_message, encode_request,
+};
 
 /// 设备发现客户端
 pub struct DiscoverClient {
@@ -42,8 +45,18 @@ impl DiscoverClient {
 
         log::info!("start discovering at {}", socket.local_addr()?);
 
-        // 加入组播
-        socket.join_multicast_v4(self.config.multicast_addr, Ipv4Addr::UNSPECIFIED)?;
+        for (_, addr) in local_ip_address::list_afinet_netifas()
+            .map_err(|e| DiscoverError::Other(e.to_string()))?
+        {
+            let IpAddr::V4(addr) = addr else {
+                continue;
+            };
+
+            // 加入组播
+            if socket.join_multicast_v4(self.config.multicast_addr, addr).is_err() {
+                log::warn!("Failed to join multicast group, ip: {}", addr);
+            }
+        }
 
         let instant = Instant::now();
 

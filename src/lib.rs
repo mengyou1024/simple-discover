@@ -25,7 +25,6 @@ const PROTOCOL_HEADER_SIZE: usize = 14;
 /// 协议缓冲区大小
 const PROTOCOL_BUFFER_SIZE: usize = 4096;
 
-
 /// 发现配置
 #[derive(Debug, Clone)]
 pub struct DiscoverConfig {
