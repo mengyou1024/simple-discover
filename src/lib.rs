@@ -144,8 +144,9 @@ fn encode_request() -> Vec<u8> {
 fn encode_response(custom_data: Option<&serde_json::Value>) -> crate::Result<Vec<u8>> {
     let payload = if let Some(data) = custom_data {
         // 如果有自定义数据，直接使用它作为payload
-        serde_json::to_vec(data)
-            .map_err(|e| DiscoverError::Protocol(format!("Failed to serialize custom data: {}", e)))?
+        serde_json::to_vec(data).map_err(|e| {
+            DiscoverError::Protocol(format!("Failed to serialize custom data: {}", e))
+        })?
     } else {
         // 如果没有自定义数据，payload为空
         vec![]
@@ -183,7 +184,7 @@ fn decode_message(buffer: &[u8]) -> crate::Result<(u8, Option<serde_json::Value>
     }
 
     // Parse header
-    let magic = u32::from_le_bytes([buffer[0], buffer[1], buffer[2], buffer[3]]);
+    let magic = u32::from_le_bytes(buffer[0..4].try_into().unwrap());
     if magic != PROTOCOL_MAGIC {
         return Err(DiscoverError::Protocol(format!(
             "Invalid magic: 0x{:08X}",
@@ -192,8 +193,8 @@ fn decode_message(buffer: &[u8]) -> crate::Result<(u8, Option<serde_json::Value>
     }
 
     let msg_type = buffer[4];
-    let length = u32::from_le_bytes([buffer[5], buffer[6], buffer[7], buffer[8]]) as usize;
-    let expected_crc = u32::from_le_bytes([buffer[9], buffer[10], buffer[11], buffer[12]]);
+    let length = u32::from_le_bytes(buffer[5..9].try_into().unwrap()) as usize;
+    let expected_crc = u32::from_le_bytes(buffer[9..13].try_into().unwrap());
 
     if buffer.len() < PROTOCOL_HEADER_SIZE + length {
         return Err(DiscoverError::Protocol(format!(
@@ -218,8 +219,10 @@ fn decode_message(buffer: &[u8]) -> crate::Result<(u8, Option<serde_json::Value>
     let json = if payload.is_empty() {
         None
     } else {
-        Some(serde_json::from_slice(payload)
-            .map_err(|e| DiscoverError::Protocol(format!("Failed to parse JSON: {}", e)))?)
+        Some(
+            serde_json::from_slice(payload)
+                .map_err(|e| DiscoverError::Protocol(format!("Failed to parse JSON: {}", e)))?,
+        )
     };
 
     Ok((msg_type, json))

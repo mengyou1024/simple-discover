@@ -53,7 +53,10 @@ impl DiscoverClient {
             };
 
             // 加入组播
-            if socket.join_multicast_v4(self.config.multicast_addr, addr).is_err() {
+            if socket
+                .join_multicast_v4(self.config.multicast_addr, addr)
+                .is_err()
+            {
                 log::warn!("Failed to join multicast group, ip: {}", addr);
             }
         }
