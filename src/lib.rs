@@ -14,14 +14,12 @@ const DEFAULT_DISCOVER_PORT: &[u16] = &[10001, 10010, 10100, 11000];
 
 /// 协议魔数 "SDSC" (Simple Discover Service Code)
 const PROTOCOL_MAGIC: u32 = 0x53445343;
-/// 协议版本
-const PROTOCOL_VERSION: u8 = 1;
 /// 消息类型：请求
 const MSG_TYPE_REQUEST: u8 = 0;
 /// 消息类型：响应
 const MSG_TYPE_RESPONSE: u8 = 1;
-/// 协议头部长度：Magic(4) + Version(1) + Type(1) + Length(4) + CRC32(4) = 14 bytes
-const PROTOCOL_HEADER_SIZE: usize = 14;
+/// 协议头部长度：Magic(4) + Type(1) + Length(4) + CRC32(4) = 13 bytes
+const PROTOCOL_HEADER_SIZE: usize = 13;
 /// 协议缓冲区大小
 const PROTOCOL_BUFFER_SIZE: usize = 4096;
 
@@ -122,22 +120,21 @@ fn calculate_crc32(data: &[u8]) -> u32 {
 
 /// 编码请求消息
 fn encode_request() -> Vec<u8> {
-    let payload = br#"{"type":"request"}"#;
+    // 请求消息没有payload
+    let payload = &[];
     let crc = calculate_crc32(payload);
 
     let mut buffer = Vec::with_capacity(PROTOCOL_HEADER_SIZE + payload.len());
 
     // Magic (4 bytes, little-endian)
     buffer.extend_from_slice(&PROTOCOL_MAGIC.to_le_bytes());
-    // Version (1 byte)
-    buffer.push(PROTOCOL_VERSION);
-    // Type (1 byte)
+    // Type (1 byte): 0 = Request
     buffer.push(MSG_TYPE_REQUEST);
     // Length (4 bytes, little-endian)
     buffer.extend_from_slice(&(payload.len() as u32).to_le_bytes());
     // CRC32 (4 bytes, little-endian)
     buffer.extend_from_slice(&crc.to_le_bytes());
-    // Payload
+    // Payload (empty for request)
     buffer.extend_from_slice(payload);
 
     buffer
@@ -145,15 +142,14 @@ fn encode_request() -> Vec<u8> {
 
 /// 编码响应消息
 fn encode_response(custom_data: Option<&serde_json::Value>) -> crate::Result<Vec<u8>> {
-    let mut payload_obj = serde_json::Map::new();
-    payload_obj.insert("type".to_string(), serde_json::Value::from("response"));
-
-    if let Some(data) = custom_data {
-        payload_obj.insert("data".to_string(), data.clone());
-    }
-
-    let payload = serde_json::to_vec(&serde_json::Value::Object(payload_obj))
-        .map_err(|e| DiscoverError::Protocol(format!("Failed to serialize response: {}", e)))?;
+    let payload = if let Some(data) = custom_data {
+        // 如果有自定义数据，直接使用它作为payload
+        serde_json::to_vec(data)
+            .map_err(|e| DiscoverError::Protocol(format!("Failed to serialize custom data: {}", e)))?
+    } else {
+        // 如果没有自定义数据，payload为空
+        vec![]
+    };
 
     let crc = calculate_crc32(&payload);
 
@@ -161,9 +157,7 @@ fn encode_response(custom_data: Option<&serde_json::Value>) -> crate::Result<Vec
 
     // Magic (4 bytes, little-endian)
     buffer.extend_from_slice(&PROTOCOL_MAGIC.to_le_bytes());
-    // Version (1 byte)
-    buffer.push(PROTOCOL_VERSION);
-    // Type (1 byte)
+    // Type (1 byte): 1 = Response
     buffer.push(MSG_TYPE_RESPONSE);
     // Length (4 bytes, little-endian)
     buffer.extend_from_slice(&(payload.len() as u32).to_le_bytes());
@@ -176,7 +170,10 @@ fn encode_response(custom_data: Option<&serde_json::Value>) -> crate::Result<Vec
 }
 
 /// 解码消息
-fn decode_message(buffer: &[u8]) -> crate::Result<(u8, serde_json::Value)> {
+/// # Returns
+/// (msg_type, payload_json) - 消息类型和payload的JSON值
+/// 如果payload为空，返回None
+fn decode_message(buffer: &[u8]) -> crate::Result<(u8, Option<serde_json::Value>)> {
     if buffer.len() < PROTOCOL_HEADER_SIZE {
         return Err(DiscoverError::Protocol(format!(
             "Buffer too short: {} bytes, expected at least {}",
@@ -194,17 +191,9 @@ fn decode_message(buffer: &[u8]) -> crate::Result<(u8, serde_json::Value)> {
         )));
     }
 
-    let version = buffer[4];
-    if version != PROTOCOL_VERSION {
-        return Err(DiscoverError::Protocol(format!(
-            "Unsupported version: {}",
-            version
-        )));
-    }
-
-    let msg_type = buffer[5];
-    let length = u32::from_le_bytes([buffer[6], buffer[7], buffer[8], buffer[9]]) as usize;
-    let expected_crc = u32::from_le_bytes([buffer[10], buffer[11], buffer[12], buffer[13]]);
+    let msg_type = buffer[4];
+    let length = u32::from_le_bytes([buffer[5], buffer[6], buffer[7], buffer[8]]) as usize;
+    let expected_crc = u32::from_le_bytes([buffer[9], buffer[10], buffer[11], buffer[12]]);
 
     if buffer.len() < PROTOCOL_HEADER_SIZE + length {
         return Err(DiscoverError::Protocol(format!(
@@ -225,9 +214,13 @@ fn decode_message(buffer: &[u8]) -> crate::Result<(u8, serde_json::Value)> {
         )));
     }
 
-    // Parse JSON payload
-    let json: serde_json::Value = serde_json::from_slice(payload)
-        .map_err(|e| DiscoverError::Protocol(format!("Failed to parse JSON: {}", e)))?;
+    // Parse JSON payload (if not empty)
+    let json = if payload.is_empty() {
+        None
+    } else {
+        Some(serde_json::from_slice(payload)
+            .map_err(|e| DiscoverError::Protocol(format!("Failed to parse JSON: {}", e)))?)
+    };
 
     Ok((msg_type, json))
 }

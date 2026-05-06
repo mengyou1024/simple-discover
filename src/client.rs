@@ -92,9 +92,8 @@ impl DiscoverClient {
                             if let std::net::SocketAddr::V4(src_addr) = src {
                                 let ip = *src_addr.ip();
 
-                                // 解析响应 JSON，提取自定义数据（如果存在）
-                                let data =
-                                    json.as_object().and_then(|obj| obj.get("data")).cloned();
+                                // JSON就是custom_data本身（如果存在）
+                                let data = json;
 
                                 log::info!(
                                     "found device at {} with data: {}",
